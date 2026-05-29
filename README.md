@@ -8,6 +8,7 @@
 add the following to your ~/.zshrc
 ```bash
 setopt EXTENDED_HISTORY
+setopt INC_APPEND_HISTORY
 HISTFILE=~/.zsh_history # or ~/.histfile
 HISTSIZE=10000
 SAVEHIST=10000
