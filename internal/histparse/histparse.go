@@ -1,0 +1,89 @@
+// currently only supports EXTENDED_HISTORY
+
+package histparse
+
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
+
+	"github.com/google/shlex"
+)
+
+type CommandEntry struct {
+	Timestamp int
+	Duration  int
+	Command   []string
+}
+
+// multiline commands end with a \
+// next line is a continuation line if it does not start with ": "
+func ParseHistory(hist io.Reader) ([]CommandEntry, error) {
+	var commands []CommandEntry
+
+	scanner := bufio.NewScanner(hist)
+	var currLine []byte
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+
+		currLine = append(currLine, line...)
+
+		if bytes.HasSuffix(line, []byte(`\`)) {
+			currLine = append(currLine, '\n')
+			continue
+		}
+
+		entry, err := parseCommandEntry(currLine)
+		if err == nil {
+			commands = append(commands, entry)
+		}
+		currLine = nil
+	}
+
+	return commands, nil
+}
+
+// extended history format
+// : <time-stamp>:<duration>;<command>
+// parse a single command entry into the CommandEntry struct
+func parseCommandEntry(entry []byte) (CommandEntry, error) {
+	s := string(entry[2:]) // remove prefix
+	idx := strings.Index(s, ":")
+	if idx == -1 {
+		return CommandEntry{}, fmt.Errorf("invalid command format, must contain ':'\n")
+	}
+
+	timestamp, err := strconv.Atoi(s[:idx])
+	if err != nil {
+		return CommandEntry{}, fmt.Errorf("invalid command format")
+	}
+	s = s[idx+1:]
+
+	idx = strings.Index(s, ";")
+	if idx == -1 {
+		return CommandEntry{}, fmt.Errorf("invalid command format")
+	}
+
+	duration, err := strconv.Atoi(s[:idx])
+	if err != nil {
+		return CommandEntry{}, fmt.Errorf("invalid command format")
+	}
+	s = s[idx+1:]
+
+	s = strings.ReplaceAll(s, "\\\n", " ")
+
+	args, err := shlex.Split(s)
+	if err != nil {
+		return CommandEntry{}, fmt.Errorf("failed to parse command: %w", err)
+	}
+
+	return CommandEntry{
+		Timestamp: timestamp,
+		Duration:  duration,
+		Command:   args,
+	}, nil
+}
