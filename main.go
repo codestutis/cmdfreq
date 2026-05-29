@@ -109,7 +109,7 @@ func renderBar(i int, cmd CommandFreq, maxCount int) string {
 
 func printSummary(ranked []CommandFreq) {
 	fmt.Println()
-	fmt.Println("  " + bold(fg("#E2E8F0", "cmdhist")) + "  " + dim("most used commands"))
+	fmt.Println("  " + bold(fg("#E2E8F0", "cmdfreq")) + "  " + dim("most used commands"))
 	fmt.Println("  " + dim(strings.Repeat("─", 58)))
 	fmt.Println()
 
