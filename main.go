@@ -12,8 +12,9 @@ import (
 )
 
 var possibleHistoryFiles = []string{
-	".histfile",
 	".zsh_history",
+	".bash_history",
+	".histfile",
 }
 
 func getHistoryFile() (io.ReadCloser, error) {

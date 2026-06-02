@@ -7,16 +7,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
 	"github.com/google/shlex"
 )
 
 type CommandEntry struct {
-	Timestamp int
-	Duration  int
-	Command   []string
+	Command []string
 }
 
 // multiline commands end with a \
@@ -51,39 +48,24 @@ func ParseHistory(hist io.Reader) ([]CommandEntry, error) {
 // : <time-stamp>:<duration>;<command>
 // parse a single command entry into the CommandEntry struct
 func parseCommandEntry(entry []byte) (CommandEntry, error) {
-	s := string(entry[2:]) // remove prefix
-	idx := strings.Index(s, ":")
-	if idx == -1 {
-		return CommandEntry{}, fmt.Errorf("invalid command format, must contain ':'\n")
+	s := string(entry)
+
+	// extended entry
+	if entry[0] == ':' {
+		idx := strings.Index(s, ";")
+		if idx == -1 {
+			return CommandEntry{}, fmt.Errorf("invalid command format")
+		}
+
+		s = s[idx+1:]
+		s = strings.ReplaceAll(s, "\\\n", " ")
 	}
-
-	timestamp, err := strconv.Atoi(s[:idx])
-	if err != nil {
-		return CommandEntry{}, fmt.Errorf("invalid command format")
-	}
-	s = s[idx+1:]
-
-	idx = strings.Index(s, ";")
-	if idx == -1 {
-		return CommandEntry{}, fmt.Errorf("invalid command format")
-	}
-
-	duration, err := strconv.Atoi(s[:idx])
-	if err != nil {
-		return CommandEntry{}, fmt.Errorf("invalid command format")
-	}
-	s = s[idx+1:]
-
-	s = strings.ReplaceAll(s, "\\\n", " ")
-
 	args, err := shlex.Split(s)
 	if err != nil {
 		return CommandEntry{}, fmt.Errorf("failed to parse command: %w", err)
 	}
 
 	return CommandEntry{
-		Timestamp: timestamp,
-		Duration:  duration,
 		Command:   args,
 	}, nil
 }

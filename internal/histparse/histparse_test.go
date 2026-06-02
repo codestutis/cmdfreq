@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestParseCommandEntry(t *testing.T) {
+func TestParseExtendedCommandEntry(t *testing.T) {
 	cmd := []byte(": 12345678:2;ls")
 
 	entry, err := parseCommandEntry(cmd)
@@ -60,4 +60,49 @@ func TestParseCommandEntry(t *testing.T) {
 		log.Println("command not parsed properly")
 		t.Fail()
 	}
+}
+
+func TestParseSimpleCommandEntry(t *testing.T) {
+	cmd := []byte("ls")
+
+	entry, err := parseCommandEntry(cmd)
+	fmt.Println(entry)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+	if entry.Command[0] != "ls" {
+		log.Println("command not parsed properly")
+		t.Fail()
+	}
+
+	cmd = []byte("sudo rm -rf --no-preserve-root")
+
+	entry, err = parseCommandEntry(cmd)
+	fmt.Println(entry)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
+	if entry.Command[0] != "sudo" {
+		log.Println("command not parsed properly")
+		t.Fail()
+	}
+
+	if entry.Command[1] != "rm" {
+		log.Println("command not parsed properly")
+		t.Fail()
+	}
+
+	if entry.Command[2] != "-rf" {
+		log.Println("command not parsed properly")
+		t.Fail()
+	}
+
+	if entry.Command[3] != "--no-preserve-root" {
+		log.Println("command not parsed properly")
+		t.Fail()
+	}
+
 }
