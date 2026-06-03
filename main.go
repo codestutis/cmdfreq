@@ -116,11 +116,16 @@ func printSummary(ranked []CommandFreq) {
 	}
 
 	fmt.Println()
-	fmt.Println("  " + dim(fmt.Sprintf("─── %d unique commands", len(ranked))))
+	fmt.Println("  " + dim(fmt.Sprintf("─── %d unique command(s)", len(ranked))))
 	fmt.Println()
 }
 
 func main() {
+	cmdArgs := os.Args
+	if len(cmdArgs) > 2 {
+		log.Fatalf("too many arguments\nUsage: cmdfreq [<command>]")
+	}
+
 	histFile := mustGetHistoryFile()
 	defer histFile.Close()
 
@@ -129,21 +134,60 @@ func main() {
 		log.Fatal(err)
 	}
 
-	freq := make(map[string]int)
-	for _, entry := range entries {
-		if len(entry.Command) > 0 {
-			freq[entry.Command[0]]++
+	if len(cmdArgs) == 1 {
+		freq := make(map[string]int)
+		for _, entry := range entries {
+			if len(entry.Command) > 0 {
+				freq[entry.Command[0]]++
+			}
 		}
+
+		var sortedEntries []CommandFreq
+		for cmd, count := range freq {
+			sortedEntries = append(sortedEntries, CommandFreq{cmd, count})
+		}
+
+		sort.Slice(sortedEntries, func(i, j int) bool {
+			return sortedEntries[i].Count > sortedEntries[j].Count
+		})
+		printSummary(sortedEntries)
+	} else {
+		command := cmdArgs[1]
+		ok := false
+		for _, entry := range entries {
+			if entry.Command[0] == command {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			log.Fatalf("command not found: %s", command)
+		}
+
+		//! this wont work properly if command arguments are used in different orders
+		freq := make(map[string]int)
+		for _, entry := range entries {
+			if len(entry.Command) > 0 {
+				if entry.Command[0] == command {
+					if len(entry.Command) > 1 {
+						freq[entry.Command[1]]++
+					}
+				}
+			}
+		}
+		if len(freq) == 0 {
+			log.Fatalf("no arguments found for: %s", command)
+		}
+
+		var sortedEntries []CommandFreq
+		for cmd, count := range freq {
+			sortedEntries = append(sortedEntries, CommandFreq{cmd, count})
+		}
+
+		sort.Slice(sortedEntries, func(i, j int) bool {
+			return sortedEntries[i].Count > sortedEntries[j].Count
+		})
+		printSummary(sortedEntries)
+
 	}
-
-	var sortedEntries []CommandFreq
-	for cmd, count := range freq {
-		sortedEntries = append(sortedEntries, CommandFreq{cmd, count})
-	}
-
-	sort.Slice(sortedEntries, func(i, j int) bool {
-		return sortedEntries[i].Count > sortedEntries[j].Count
-	})
-
-	printSummary(sortedEntries)
 }

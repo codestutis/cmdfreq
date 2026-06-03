@@ -25,8 +25,9 @@ go install github.com/codestutis/cmdfreq@latest
 ```
 ## Usage
 ```bash
-cmdfreq
+cmdfreq [<command>]
 ```
-Displays your top 20 most used commands, ranked by frequency
+- Displays your top 20 most used commands, ranked by frequency
+- Ex: `cmdfreq git` will output the most used arguments to the git command
 ## Example Output
 ![example output](./images/cmdfreq_output.png)
