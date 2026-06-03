@@ -11,20 +11,12 @@ import (
 	"github.com/codestutis/cmdfreq/internal/histparse"
 )
 
-var possibleHistoryFiles = []string{
-	".zsh_history",
-	".bash_history",
-	".histfile",
-}
-
-func getHistoryFile() (io.ReadCloser, error) {
-	for _, fileName := range possibleHistoryFiles {
-		file, err := os.Open(os.Getenv("HOME") + "/" + fileName)
-		if err == nil {
-			return file, nil
-		}
+func mustGetHistoryFile() io.ReadCloser {
+	file, err := os.Open(os.Getenv("HISTFILE"))
+	if err != nil {
+		log.Fatalf("cant find history file")
 	}
-	return nil, fmt.Errorf("cant find history file")
+	return file
 }
 
 type CommandFreq struct {
@@ -129,10 +121,7 @@ func printSummary(ranked []CommandFreq) {
 }
 
 func main() {
-	histFile, err := getHistoryFile()
-	if err != nil {
-		log.Fatal(err)
-	}
+	histFile := mustGetHistoryFile()
 	defer histFile.Close()
 
 	entries, err := histparse.ParseHistory(histFile)

@@ -1,17 +1,18 @@
 # cmdfreq
 - a CLI tool that analyzes you shell history and shows a ranked summary of your most used commands
 ## Requirements
-- zsh - only zsh is supported wich history in either .histfile or .zsh_history - bash support will be added
-- Extended History must be enabled, which includes timestamps and durations for each command. whithout it the history file won't be able to be parsed
-
+- go - you must have go installed on your system to be able to install this command
+- setup - follow the setup instructions below for it to function properly
 ## Setup
 add the following to your ~/.zshrc
 ```bash
-setopt EXTENDED_HISTORY
 setopt INC_APPEND_HISTORY
-HISTFILE=~/.zsh_history # or ~/.histfile
+setopt SHARE_HISTORY # shares history between terminal windows and tmux sessions
+export HISTFILE=~/.zsh_history # any file name will work
 HISTSIZE=10000
 SAVEHIST=10000
+# if GOBIN is not already in your PATH
+export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 then reload your config
 ```bash
@@ -22,9 +23,10 @@ source ~/.zshrc
 ```bash
 go install github.com/codestutis/cmdfreq@latest
 ```
-
 ## Usage
 ```bash
 cmdfreq
 ```
 Displays your top 20 most used commands, ranked by frequency
+## Example Output
+![example output](./images/cmdfreq_output.png)
