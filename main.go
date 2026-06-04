@@ -166,15 +166,14 @@ func main() {
 
 		//! this wont work properly if command arguments are used in different orders
 		freq := make(map[string]int)
-		for _, entry := range entries {
-			if len(entry.Command) > 0 {
-				if entry.Command[0] == command {
-					if len(entry.Command) > 1 {
-						freq[entry.Command[1]]++
-					}
-				}
+		for _, e := range entries {
+			cmd := e.Command
+			if len(cmd) < 2 || cmd[0] != command {
+				continue
 			}
+			freq[cmd[1]]++
 		}
+
 		if len(freq) == 0 {
 			log.Fatalf("no arguments found for: %s", command)
 		}
