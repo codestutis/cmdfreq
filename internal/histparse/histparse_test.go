@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"bytes"
 )
 
 func TestParseExtendedCommandEntry(t *testing.T) {
@@ -104,5 +105,31 @@ func TestParseSimpleCommandEntry(t *testing.T) {
 		log.Println("command not parsed properly")
 		t.Fail()
 	}
+}
 
+func TestParseEmptyLines(t *testing.T) {
+    cmd := []byte("ls -la\nsudo rm -rf\n\ncat ~/.zshrc")
+
+    entries, err := ParseHistory(bytes.NewReader(cmd))
+    if err != nil {
+        log.Println(err)
+        t.Fail()
+    }
+    if len(entries) != 3 {
+        log.Println("commands not parsed properly")
+        t.Fail()
+    }
+
+    cmd = []byte("")
+
+    entries, err = ParseHistory(bytes.NewReader(cmd))
+    if err != nil {
+        log.Println(err)
+        t.Fail()
+    }
+
+    if len(entries) != 0 {
+        log.Println(err)
+        t.Fail()
+    }
 }

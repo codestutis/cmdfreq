@@ -35,8 +35,8 @@ func ParseHistory(hist io.Reader) ([]CommandEntry, error) {
 		}
 
 		entry, err := parseCommandEntry(currLine)
-		if err == nil {
-			commands = append(commands, entry)
+		if err == nil && entry != nil {
+			commands = append(commands, *entry)
 		}
 		currLine = nil
 	}
@@ -47,14 +47,17 @@ func ParseHistory(hist io.Reader) ([]CommandEntry, error) {
 // extended history format
 // : <time-stamp>:<duration>;<command>
 // parse a single command entry into the CommandEntry struct
-func parseCommandEntry(entry []byte) (CommandEntry, error) {
+func parseCommandEntry(entry []byte) (*CommandEntry, error) {
 	s := string(entry)
+	if s == "" {
+	    return nil, nil
+	}
 
 	// extended entry
 	if entry[0] == ':' {
 		idx := strings.Index(s, ";")
 		if idx == -1 {
-			return CommandEntry{}, fmt.Errorf("invalid command format")
+			return nil, fmt.Errorf("invalid command format")
 		}
 
 		s = s[idx+1:]
@@ -62,10 +65,10 @@ func parseCommandEntry(entry []byte) (CommandEntry, error) {
 	}
 	args, err := shlex.Split(s)
 	if err != nil {
-		return CommandEntry{}, fmt.Errorf("failed to parse command: %w", err)
+		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
 
-	return CommandEntry{
+	return &CommandEntry{
 		Command:   args,
 	}, nil
 }
