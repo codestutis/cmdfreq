@@ -5,8 +5,8 @@
 - setup - follow the setup instructions below for it to function properly
 ## Setup
 add the following to your ~/.zshrc
-```bash
-setopt INC_APPEND_HISTORY
+```zsh
+setopt INC_APPEND_HISTORY 
 setopt SHARE_HISTORY # shares history between terminal windows and tmux sessions
 export HISTFILE=~/.zsh_history # any file name will work
 HISTSIZE=10000
@@ -14,6 +14,9 @@ SAVEHIST=10000
 # if GOBIN is not already in your PATH
 export PATH="$PATH:$(go env GOPATH)/bin"
 ```
+> [!WARNING]
+> if you use bash you will need to change `setopt` to `set -o`
+
 then reload your config
 ```bash
 source ~/.zshrc
