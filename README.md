@@ -23,6 +23,24 @@ source ~/.zshrc
 ```
 
 ## Installation
+### Install script
+```bash
+curl -fsSL https://raw.githubusercontent.com/codestutis/cmdfreq/main/install.sh | sh
+```
+
+The install script supports macOS, Linux, and WSL. Native Windows is not supported yet because `cmdfreq` currently reads bash/zsh history files.
+
+To install a specific version:
+```bash
+curl -fsSL https://raw.githubusercontent.com/codestutis/cmdfreq/main/install.sh | VERSION=v0.4.0 sh
+```
+
+To install somewhere other than `/usr/local/bin`:
+```bash
+curl -fsSL https://raw.githubusercontent.com/codestutis/cmdfreq/main/install.sh | BIN_DIR="$HOME/.local/bin" sh
+```
+
+### Go install
 ```bash
 go install github.com/codestutis/cmdfreq@latest
 ```

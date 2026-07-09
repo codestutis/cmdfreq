@@ -1,0 +1,31 @@
+version: 2
+
+project_name: cmdfreq
+
+builds:
+  - main: .
+    binary: cmdfreq
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: codestutis
+    name: cmdfreq
