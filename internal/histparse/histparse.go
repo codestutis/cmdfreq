@@ -41,6 +41,10 @@ func ParseHistory(hist io.Reader) ([]CommandEntry, error) {
 		currLine = nil
 	}
 
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
 	return commands, nil
 }
 
@@ -50,7 +54,7 @@ func ParseHistory(hist io.Reader) ([]CommandEntry, error) {
 func parseCommandEntry(entry []byte) (*CommandEntry, error) {
 	s := string(entry)
 	if s == "" {
-	    return nil, nil
+		return nil, nil
 	}
 
 	// extended entry
@@ -69,6 +73,6 @@ func parseCommandEntry(entry []byte) (*CommandEntry, error) {
 	}
 
 	return &CommandEntry{
-		Command:   args,
+		Command: args,
 	}, nil
 }
