@@ -1,8 +1,5 @@
 # cmdfreq
 - a CLI tool that analyzes you shell history and shows a ranked summary of your most used commands
-## Requirements
-- go - you must have go installed on your system to be able to install this command
-- setup - follow the setup instructions below for it to function properly
 ## Setup
 add the following to your ~/.zshrc
 ```zsh
