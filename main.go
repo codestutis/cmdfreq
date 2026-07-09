@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -25,7 +26,7 @@ type CommandFreq struct {
 }
 
 const maxBarWidth = 36
-const topN = 20
+const defaultTopN = 20
 
 // ANSI helpers
 func fg(hex, text string) string { return fmt.Sprintf("\033[38;2;%sm%s\033[0m", hexToANSI(hex), text) }
@@ -59,10 +60,7 @@ func stripANSI(s string) string {
 
 func padRight(s string, width int) string {
 	visible := stripANSI(s)
-	pad := width - len([]rune(visible))
-	if pad < 0 {
-		pad = 0
-	}
+	pad := max(width - len([]rune(visible)), 0)
 	return s + strings.Repeat(" ", pad)
 }
 
@@ -100,7 +98,7 @@ func renderBar(i int, cmd CommandFreq, maxCount int) string {
 	return fmt.Sprintf("  %s %s %s%s%s", medal, rank, label, bar, count)
 }
 
-func printSummary(ranked []CommandFreq) {
+func printSummary(ranked []CommandFreq, topN int) {
 	fmt.Println()
 	fmt.Println("  " + bold(fg("#E2E8F0", "cmdfreq")) + "  " + dim("most used commands"))
 	fmt.Println("  " + dim(strings.Repeat("─", 58)))
@@ -121,9 +119,20 @@ func printSummary(ranked []CommandFreq) {
 }
 
 func main() {
-	cmdArgs := os.Args
-	if len(cmdArgs) > 2 {
-		log.Fatalf("too many arguments\nUsage: cmdfreq [<command>]")
+	topN := flag.Int("n", defaultTopN, "number of results to show")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: cmdfreq [-n count] [<command>]\n")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	if *topN < 1 {
+		log.Fatalf("-n must be greater than 0")
+	}
+
+	cmdArgs := flag.Args()
+	if len(cmdArgs) > 1 {
+		log.Fatalf("too many arguments\nUsage: cmdfreq [-n count] [<command>]")
 	}
 
 	histFile := mustGetHistoryFile()
@@ -134,7 +143,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if len(cmdArgs) == 1 {
+	if len(cmdArgs) == 0 {
 		freq := make(map[string]int)
 		for _, entry := range entries {
 			if len(entry.Command) > 0 {
@@ -150,12 +159,12 @@ func main() {
 		sort.Slice(sortedEntries, func(i, j int) bool {
 			return sortedEntries[i].Count > sortedEntries[j].Count
 		})
-		printSummary(sortedEntries)
+		printSummary(sortedEntries, *topN)
 	} else {
-		command := cmdArgs[1]
+		command := cmdArgs[0]
 		ok := false
 		for _, entry := range entries {
-			if entry.Command[0] == command {
+			if len(entry.Command) > 0 && entry.Command[0] == command {
 				ok = true
 				break
 			}
@@ -186,7 +195,7 @@ func main() {
 		sort.Slice(sortedEntries, func(i, j int) bool {
 			return sortedEntries[i].Count > sortedEntries[j].Count
 		})
-		printSummary(sortedEntries)
+		printSummary(sortedEntries, *topN)
 
 	}
 }
