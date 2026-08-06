@@ -43,11 +43,13 @@ go install github.com/codestutis/cmdfreq@latest
 ```
 ## Usage
 ```bash
-cmdfreq [-n count] [<command>]
+cmdfreq [-n count] [--html path] [<command>]
 ```
 - Displays your top 20 most used commands by default, ranked by frequency
 - Use `-n` to choose how many results to show
 - Ex: `cmdfreq git` will output the most used arguments to the git command
 - Ex: `cmdfreq -n 10 git` will output the top 10 most used arguments to the git command
+- Use `--html report.html` to write a shareable HTML report
+- Use `--html -` to write the HTML report to standard output
 ## Example Output
 ![example output](./images/cmdfreq_output.png)

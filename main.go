@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/codestutis/cmdfreq/internal/histparse"
+	"github.com/codestutis/cmdfreq/internal/report"
 )
 
 func mustGetHistoryFile() io.ReadCloser {
@@ -60,7 +61,7 @@ func stripANSI(s string) string {
 
 func padRight(s string, width int) string {
 	visible := stripANSI(s)
-	pad := max(width - len([]rune(visible)), 0)
+	pad := max(width-len([]rune(visible)), 0)
 	return s + strings.Repeat(" ", pad)
 }
 
@@ -118,10 +119,46 @@ func printSummary(ranked []CommandFreq, topN int) {
 	fmt.Println()
 }
 
+func renderHTMLSummary(ranked []CommandFreq) ([]byte, error) {
+	commands := make([]report.Command, len(ranked))
+	totalCommands := 0
+	for i, command := range ranked {
+		commands[i] = report.Command{Name: command.Command, Count: command.Count}
+		totalCommands += command.Count
+	}
+
+	return report.Render(report.Data{
+		TotalCommands:  totalCommands,
+		UniqueCommands: len(commands),
+		Commands:       commands,
+	})
+}
+
+func outputSummary(ranked []CommandFreq, topN int, htmlPath string) error {
+	if htmlPath == "" {
+		printSummary(ranked, topN)
+		return nil
+	}
+
+	html, err := renderHTMLSummary(ranked)
+	if err != nil {
+		return err
+	}
+	if htmlPath == "-" {
+		_, err = os.Stdout.Write(html)
+		return err
+	}
+	if err := os.WriteFile(htmlPath, html, 0o644); err != nil {
+		return fmt.Errorf("write HTML report: %w", err)
+	}
+	return nil
+}
+
 func main() {
 	topN := flag.Int("n", defaultTopN, "number of results to show")
+	htmlPath := flag.String("html", "", "write an HTML report to path (use - for stdout)")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: cmdfreq [-n count] [<command>]\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: cmdfreq [-n count] [--html path] [<command>]\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -159,7 +196,9 @@ func main() {
 		sort.Slice(sortedEntries, func(i, j int) bool {
 			return sortedEntries[i].Count > sortedEntries[j].Count
 		})
-		printSummary(sortedEntries, *topN)
+		if err := outputSummary(sortedEntries, *topN, *htmlPath); err != nil {
+			log.Fatal(err)
+		}
 	} else {
 		command := cmdArgs[0]
 		ok := false
@@ -195,7 +234,9 @@ func main() {
 		sort.Slice(sortedEntries, func(i, j int) bool {
 			return sortedEntries[i].Count > sortedEntries[j].Count
 		})
-		printSummary(sortedEntries, *topN)
+		if err := outputSummary(sortedEntries, *topN, *htmlPath); err != nil {
+			log.Fatal(err)
+		}
 
 	}
 }
