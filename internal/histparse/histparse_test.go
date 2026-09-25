@@ -1,135 +1,206 @@
 package histparse
 
 import (
-	"fmt"
-	"log"
+	"errors"
+	"io"
+	"reflect"
+	"strings"
 	"testing"
-	"bytes"
 )
 
-func TestParseExtendedCommandEntry(t *testing.T) {
-	cmd := []byte(": 12345678:2;ls")
+func TestParseHistoryCommands(t *testing.T) {
+	history := strings.Join([]string{
+		"ls | grep file.txt",
+		"cd repo && git status",
+		"cat log | grep error | sort | uniq",
+		"printf done |& tee output || echo failed; pwd",
+	}, "\n")
 
-	entry, err := parseCommandEntry(cmd)
-	fmt.Println(entry)
+	entries, err := ParseHistory(strings.NewReader(history))
 	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	if entry.Command[0] != "ls" {
-		log.Println("command not parsed properly")
-		t.Fail()
+		t.Fatalf("ParseHistory() error = %v", err)
 	}
 
-	multilineCmd := []byte(": 1234578:0;echo\\\n\"hello there\"")
+	want := [][]string{
+		{"ls"},
+		{"grep", "file.txt"},
+		{"cd", "repo"},
+		{"git", "status"},
+		{"cat", "log"},
+		{"grep", "error"},
+		{"sort"},
+		{"uniq"},
+		{"printf", "done"},
+		{"tee", "output"},
+		{"echo", "failed"},
+		{"pwd"},
+	}
+	assertCommands(t, entries, want)
+}
 
-	entry, err = parseCommandEntry(multilineCmd)
-	fmt.Println(entry)
+func TestParseHistoryFiltersPathsAndAssignments(t *testing.T) {
+	history := strings.Join([]string{
+		"./script",
+		"../tool",
+		"/usr/bin/python app.py",
+		`\~/bin/foo`,
+		"FOO=bar npm test",
+		"FOO=bar",
+		"FOO=bar BAR=baz make test && ./script | grep x",
+		"NOT-AN-ASSIGNMENT=value arg",
+	}, "\n")
+
+	entries, err := ParseHistory(strings.NewReader(history))
 	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	if entry.Command[0] != "echo" {
-		log.Println("command not parsed properly")
-		t.Fail()
-	}
-	if entry.Command[1] != "hello there" {
-		log.Println("command not parsed properly")
-		t.Fail()
+		t.Fatalf("ParseHistory() error = %v", err)
 	}
 
-	longCommand := []byte(": 12345678:1;cat /etc/resolv.conf | grep nameserver")
-	entry, err = parseCommandEntry(longCommand)
-	fmt.Println(entry)
-	if entry.Command[0] != "cat" {
-		log.Println("command not parsed properly")
-		t.Fail()
+	want := [][]string{
+		{"npm", "test"},
+		{"make", "test"},
+		{"grep", "x"},
+		{"NOT-AN-ASSIGNMENT=value", "arg"},
 	}
-	if entry.Command[1] != "/etc/resolv.conf" {
-		log.Println("command not parsed properly")
-		t.Fail()
+	assertCommands(t, entries, want)
+}
+
+func TestParseHistorySkipsEmptyAndInvalidSegments(t *testing.T) {
+	history := strings.Join([]string{
+		"",
+		"; ;",
+		"ls || ; && grep x | | sort;",
+		`echo "unterminated`,
+		": malformed extended history",
+	}, "\n")
+
+	entries, err := ParseHistory(strings.NewReader(history))
+	if err != nil {
+		t.Fatalf("ParseHistory() error = %v", err)
 	}
-	if entry.Command[2] != "|" {
-		log.Println("command not parsed properly")
-		t.Fail()
+
+	assertCommands(t, entries, [][]string{{"ls"}, {"grep", "x"}, {"sort"}})
+}
+
+func TestParseHistoryPreservesQuotedAndEscapedSeparators(t *testing.T) {
+	history := strings.Join([]string{
+		`echo "a|b" 'c;d'`,
+		`printf a\|b`,
+	}, "\n")
+
+	entries, err := ParseHistory(strings.NewReader(history))
+	if err != nil {
+		t.Fatalf("ParseHistory() error = %v", err)
 	}
-	if entry.Command[3] != "grep" {
-		log.Println("command not parsed properly")
-		t.Fail()
+
+	assertCommands(t, entries, [][]string{
+		{"echo", "a|b", "c;d"},
+		{"printf", "a|b"},
+	})
+}
+
+func TestParseExtendedAndMultilineHistory(t *testing.T) {
+	history := ": 12345678:2;echo \\\n\"hello there\" && git status\n"
+
+	entries, err := ParseHistory(strings.NewReader(history))
+	if err != nil {
+		t.Fatalf("ParseHistory() error = %v", err)
 	}
-	if entry.Command[4] != "nameserver" {
-		log.Println("command not parsed properly")
-		t.Fail()
+
+	assertCommands(t, entries, [][]string{
+		{"echo", "hello there"},
+		{"git", "status"},
+	})
+}
+
+func TestParseHistoryWithAliases(t *testing.T) {
+	aliases := map[string]string{
+		"g":       "git",
+		"gco":     "g checkout",
+		"ll":      "ls -la",
+		"script":  "./script",
+		"nothing": "FOO=bar",
+	}
+	history := "g status && gco main; ll /tmp | script; nothing"
+
+	entries, err := ParseHistoryWithAliases(strings.NewReader(history), aliases)
+	if err != nil {
+		t.Fatalf("ParseHistoryWithAliases() error = %v", err)
+	}
+
+	assertCommands(t, entries, [][]string{
+		{"git", "status"},
+		{"git", "checkout", "main"},
+		{"ls", "-la", "/tmp"},
+	})
+}
+
+func TestAliasCyclesAndInvalidExpansionsAreSafe(t *testing.T) {
+	aliases := map[string]string{
+		"a":   "b",
+		"b":   "a",
+		"bad": "'",
+	}
+
+	entries, err := ParseHistoryWithAliases(strings.NewReader("a; bad"), aliases)
+	if err != nil {
+		t.Fatalf("ParseHistoryWithAliases() error = %v", err)
+	}
+	assertCommands(t, entries, [][]string{{"a"}, {"bad"}})
+}
+
+func TestParseAliases(t *testing.T) {
+	output := strings.Join([]string{
+		"alias g='git'",
+		"ll='ls -la'",
+		"alias quoted='echo \"hello world\"'",
+		"not-an-alias",
+		"alias broken='",
+		"alias empty=",
+	}, "\n")
+
+	want := map[string]string{
+		"g":      "git",
+		"ll":     "ls -la",
+		"quoted": `echo "hello world"`,
+	}
+	if got := ParseAliases(output); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ParseAliases() = %#v, want %#v", got, want)
 	}
 }
 
-func TestParseSimpleCommandEntry(t *testing.T) {
-	cmd := []byte("ls")
-
-	entry, err := parseCommandEntry(cmd)
-	fmt.Println(entry)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	if entry.Command[0] != "ls" {
-		log.Println("command not parsed properly")
-		t.Fail()
-	}
-
-	cmd = []byte("sudo rm -rf --no-preserve-root")
-
-	entry, err = parseCommandEntry(cmd)
-	fmt.Println(entry)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	if entry.Command[0] != "sudo" {
-		log.Println("command not parsed properly")
-		t.Fail()
-	}
-
-	if entry.Command[1] != "rm" {
-		log.Println("command not parsed properly")
-		t.Fail()
-	}
-
-	if entry.Command[2] != "-rf" {
-		log.Println("command not parsed properly")
-		t.Fail()
-	}
-
-	if entry.Command[3] != "--no-preserve-root" {
-		log.Println("command not parsed properly")
-		t.Fail()
+func TestParseHistoryReturnsReaderError(t *testing.T) {
+	wantErr := errors.New("read failed")
+	_, err := ParseHistory(errorReader{err: wantErr})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ParseHistory() error = %v, want %v", err, wantErr)
 	}
 }
 
-func TestParseEmptyLines(t *testing.T) {
-    cmd := []byte("ls -la\nsudo rm -rf\n\ncat ~/.zshrc")
+func TestParseHistoryHandlesFinalContinuation(t *testing.T) {
+	entries, err := ParseHistory(strings.NewReader("echo trailing\\"))
+	if err != nil {
+		t.Fatalf("ParseHistory() error = %v", err)
+	}
+	assertCommands(t, entries, [][]string{{"echo", "trailing"}})
+}
 
-    entries, err := ParseHistory(bytes.NewReader(cmd))
-    if err != nil {
-        log.Println(err)
-        t.Fail()
-    }
-    if len(entries) != 3 {
-        log.Println("commands not parsed properly")
-        t.Fail()
-    }
+type errorReader struct {
+	err error
+}
 
-    cmd = []byte("")
+func (r errorReader) Read([]byte) (int, error) {
+	return 0, r.err
+}
 
-    entries, err = ParseHistory(bytes.NewReader(cmd))
-    if err != nil {
-        log.Println(err)
-        t.Fail()
-    }
+var _ io.Reader = errorReader{}
 
-    if len(entries) != 0 {
-        log.Println(err)
-        t.Fail()
-    }
+func assertCommands(t *testing.T, entries []CommandEntry, want [][]string) {
+	t.Helper()
+	got := make([][]string, len(entries))
+	for i, entry := range entries {
+		got[i] = entry.Command
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
 }

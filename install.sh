@@ -4,7 +4,7 @@ set -eu
 REPO="${REPO:-codestutis/cmdfreq}"
 BINARY="${BINARY:-cmdfreq}"
 VERSION="${VERSION:-latest}"
-BIN_DIR="${BIN_DIR:-/usr/local/bin}"
+BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 
 need() {
 	if ! command -v "$1" >/dev/null 2>&1; then
@@ -58,23 +58,17 @@ install_binary() {
 	dst="$BIN_DIR/$BINARY"
 
 	if [ ! -d "$BIN_DIR" ]; then
-		if ! mkdir -p "$BIN_DIR" 2>/dev/null; then
-			if command -v sudo >/dev/null 2>&1; then
-				sudo mkdir -p "$BIN_DIR"
-			else
-				echo "error: could not create $BIN_DIR and sudo is unavailable" >&2
-				exit 1
-			fi
+		if ! mkdir -p "$BIN_DIR"; then
+			echo "error: could not create $BIN_DIR" >&2
+			exit 1
 		fi
 	fi
 
 	chmod +x "$src"
 	if [ -w "$BIN_DIR" ]; then
 		mv "$src" "$dst"
-	elif command -v sudo >/dev/null 2>&1; then
-		sudo mv "$src" "$dst"
 	else
-		echo "error: $BIN_DIR is not writable and sudo is unavailable" >&2
+		echo "error: $BIN_DIR is not writable; choose a user-writable BIN_DIR" >&2
 		exit 1
 	fi
 }

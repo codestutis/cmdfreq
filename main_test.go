@@ -3,38 +3,38 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestRenderHTMLSummary(t *testing.T) {
-	output, err := renderHTMLSummary([]CommandFreq{
-		{Command: "git", Count: 7},
-		{Command: "go", Count: 3},
-	})
-	if err != nil {
-		t.Fatalf("renderHTMLSummary() error = %v", err)
+func TestLoadAliases(t *testing.T) {
+	shell := filepath.Join(t.TempDir(), "test-shell")
+	contents := "#!/bin/sh\nprintf \"alias g='git'\\nll='ls -la'\\n\"\n"
+	if err := os.WriteFile(shell, []byte(contents), 0o755); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	html := string(output)
-	for _, want := range []string{"<!doctype html>", ">10<", ">2<", ">git<", ">go<"} {
-		if !strings.Contains(html, want) {
-			t.Errorf("renderHTMLSummary() output does not contain %q", want)
-		}
+	got, err := loadAliases(shell)
+	if err != nil {
+		t.Fatalf("loadAliases() error = %v", err)
+	}
+	want := map[string]string{"g": "git", "ll": "ls -la"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("loadAliases() = %#v, want %#v", got, want)
 	}
 }
 
-func TestOutputSummaryWritesHTMLFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "report.html")
-	if err := outputSummary([]CommandFreq{{Command: "git", Count: 3}}, 20, path); err != nil {
-		t.Fatalf("outputSummary() error = %v", err)
+func TestLoadAliasesErrors(t *testing.T) {
+	if _, err := loadAliases(""); err == nil || !strings.Contains(err.Error(), "SHELL is not set") {
+		t.Fatalf("loadAliases(\"\") error = %v", err)
 	}
 
-	output, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
+	if _, err := loadAliases(filepath.Join(t.TempDir(), "missing")); err == nil {
+		t.Fatal("loadAliases() succeeded with a missing shell")
 	}
-	if !strings.Contains(string(output), "<!doctype html>") {
-		t.Fatal("outputSummary() did not write an HTML report")
-	}
+}
+
+func TestPrintSummaryAllowsNoCommands(t *testing.T) {
+	printSummary(nil, defaultTopN)
 }
