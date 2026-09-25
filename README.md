@@ -1,59 +1,64 @@
 # cmdfreq
-- a CLI tool that analyzes you shell history and shows a ranked summary of your most used commands
-## Setup
-add the following to your ~/.zshrc
-```zsh
-setopt INC_APPEND_HISTORY 
-setopt SHARE_HISTORY # shares history between terminal windows and tmux sessions
-export HISTFILE=~/.zsh_history # any file name will work
-HISTSIZE=10000
-SAVEHIST=10000
-# if GOBIN is not already in your PATH
-export PATH="$PATH:$(go env GOPATH)/bin"
-```
-> [!WARNING]
-> if you use bash you will need to change `setopt` to `set -o`
 
-then reload your config
-```bash
-source ~/.zshrc
-```
+A CLI tool that analyzes your shell history and shows a ranked summary of your most-used commands.
 
 ## Installation
+
 ### Install script
-```bash
+
+Run one command:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/codestutis/cmdfreq/main/install.sh | sh
 ```
 
-The install script supports macOS, Linux, and WSL. Native Windows is not supported yet because `cmdfreq` currently reads bash/zsh history files.
+The installer supports Bash and Zsh on macOS, Linux, and WSL. It:
+
+- installs `cmdfreq` to `$HOME/.local/bin`;
+- adds that directory to `PATH`;
+- configures persistent, shared shell history; and
+- sets a default history file when `HISTFILE` is not already configured.
+
+Open a new terminal after installation.
+
+Shell settings are stored in `${XDG_CONFIG_HOME:-$HOME/.config}/cmdfreq/bashrc` or `zshrc`. The installer adds one marked source block to the relevant startup files. Before changing an existing startup file, it saves the original as `<file>.cmdfreq.bak`; an existing backup is never overwritten. Re-running the installer is safe and does not duplicate configuration.
 
 To install a specific version:
-```bash
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/codestutis/cmdfreq/main/install.sh | VERSION=v0.4.0 sh
 ```
 
-The install script defaults to `$HOME/.local/bin` and does not use `sudo`. To install somewhere else:
-```bash
+To use a custom installation directory:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/codestutis/cmdfreq/main/install.sh | BIN_DIR="$HOME/bin" sh
 ```
 
-If needed, add the default directory to your `PATH`:
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
+The custom directory is added to `PATH` by the generated shell configuration.
+
+Native Windows is not supported; use WSL with Bash or Zsh history.
 
 ### Go install
-```bash
+
+```sh
 go install github.com/codestutis/cmdfreq@latest
 ```
+
+When installed this way, ensure the Go binary directory is on `PATH`. `cmdfreq` uses `HISTFILE` when set and otherwise detects the standard Bash or Zsh history file.
+
 ## Usage
-```bash
+
+```sh
 cmdfreq [-n count] [--resolve-aliases] [<command>]
 ```
-- Displays your top 20 most used commands by default, ranked by frequency
-- Use `-n` to choose how many results to show
-- Use `--resolve-aliases` to count aliases as the commands they expand to
-- Ex: `cmdfreq git` will output the most used arguments to the git command
-- Ex: `cmdfreq -n 10 git` will output the top 10 most used arguments to the git command
-## Example Output
-![example output](./images/cmdfreq_output.png)
+
+- Displays your top 20 most-used commands by default, ranked by frequency.
+- Use `-n` to choose how many results to show.
+- Use `--resolve-aliases` to count aliases as the commands they expand to.
+- `cmdfreq git` shows the most-used arguments to `git`.
+- `cmdfreq -n 10 git` shows the top 10 most-used arguments to `git`.
+
+## Example output
+
+![Example output](./images/cmdfreq_output.png)

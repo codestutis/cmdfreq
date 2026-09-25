@@ -7,18 +7,57 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/codestutis/cmdfreq/internal/histparse"
 )
 
-func mustGetHistoryFile() io.ReadCloser {
-	file, err := os.Open(os.Getenv("HISTFILE"))
+func historyFilePath(getenv func(string) string, userHomeDir func() (string, error)) (string, error) {
+	if path := getenv("HISTFILE"); path != "" {
+		return path, nil
+	}
+
+	historyName := ""
+	switch filepath.Base(getenv("SHELL")) {
+	case "bash":
+		historyName = ".bash_history"
+	case "zsh":
+		historyName = ".zsh_history"
+	default:
+		return "", fmt.Errorf("HISTFILE is not set and SHELL is not supported; set HISTFILE to your shell history file")
+	}
+
+	home, err := userHomeDir()
 	if err != nil {
-		log.Fatalf("cant find history file")
+		return "", fmt.Errorf("find home directory: %w", err)
+	}
+	if home == "" {
+		return "", fmt.Errorf("find home directory: empty path")
+	}
+	return filepath.Join(home, historyName), nil
+}
+
+func mustGetHistoryFile() io.ReadCloser {
+	file, err := openHistoryFile(os.Getenv, os.UserHomeDir)
+	if err != nil {
+		log.Fatal(err)
 	}
 	return file
+}
+
+func openHistoryFile(getenv func(string) string, userHomeDir func() (string, error)) (io.ReadCloser, error) {
+	path, err := historyFilePath(getenv, userHomeDir)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open history file %s: %w", path, err)
+	}
+	return file, nil
 }
 
 type CommandFreq struct {
