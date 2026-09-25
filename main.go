@@ -6,11 +6,11 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 
 	"github.com/codestutis/cmdfreq/internal/histparse"
-	"github.com/codestutis/cmdfreq/internal/report"
 )
 
 func mustGetHistoryFile() io.ReadCloser {
@@ -105,6 +105,12 @@ func printSummary(ranked []CommandFreq, topN int) {
 	fmt.Println("  " + dim(strings.Repeat("─", 58)))
 	fmt.Println()
 
+	if len(ranked) == 0 {
+		fmt.Println("  " + dim("─── 0 unique command(s)"))
+		fmt.Println()
+		return
+	}
+
 	maxCount := ranked[0].Count
 	limit := topN
 	if len(ranked) < limit {
@@ -119,46 +125,23 @@ func printSummary(ranked []CommandFreq, topN int) {
 	fmt.Println()
 }
 
-func renderHTMLSummary(ranked []CommandFreq) ([]byte, error) {
-	commands := make([]report.Command, len(ranked))
-	totalCommands := 0
-	for i, command := range ranked {
-		commands[i] = report.Command{Name: command.Command, Count: command.Count}
-		totalCommands += command.Count
+func loadAliases(shell string) (map[string]string, error) {
+	if strings.TrimSpace(shell) == "" {
+		return nil, fmt.Errorf("cannot resolve aliases: SHELL is not set")
 	}
 
-	return report.Render(report.Data{
-		TotalCommands:  totalCommands,
-		UniqueCommands: len(commands),
-		Commands:       commands,
-	})
-}
-
-func outputSummary(ranked []CommandFreq, topN int, htmlPath string) error {
-	if htmlPath == "" {
-		printSummary(ranked, topN)
-		return nil
-	}
-
-	html, err := renderHTMLSummary(ranked)
+	output, err := exec.Command(shell, "-ic", "alias").Output()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot resolve aliases using %s: %w", shell, err)
 	}
-	if htmlPath == "-" {
-		_, err = os.Stdout.Write(html)
-		return err
-	}
-	if err := os.WriteFile(htmlPath, html, 0o644); err != nil {
-		return fmt.Errorf("write HTML report: %w", err)
-	}
-	return nil
+	return histparse.ParseAliases(string(output)), nil
 }
 
 func main() {
 	topN := flag.Int("n", defaultTopN, "number of results to show")
-	htmlPath := flag.String("html", "", "write an HTML report to path (use - for stdout)")
+	resolveAliases := flag.Bool("resolve-aliases", false, "resolve aliases using the configured shell")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: cmdfreq [-n count] [--html path] [<command>]\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: cmdfreq [-n count] [--resolve-aliases] [<command>]\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -175,7 +158,16 @@ func main() {
 	histFile := mustGetHistoryFile()
 	defer histFile.Close()
 
-	entries, err := histparse.ParseHistory(histFile)
+	var aliases map[string]string
+	if *resolveAliases {
+		loadedAliases, err := loadAliases(os.Getenv("SHELL"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		aliases = loadedAliases
+	}
+
+	entries, err := histparse.ParseHistoryWithAliases(histFile, aliases)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -196,9 +188,7 @@ func main() {
 		sort.Slice(sortedEntries, func(i, j int) bool {
 			return sortedEntries[i].Count > sortedEntries[j].Count
 		})
-		if err := outputSummary(sortedEntries, *topN, *htmlPath); err != nil {
-			log.Fatal(err)
-		}
+		printSummary(sortedEntries, *topN)
 	} else {
 		command := cmdArgs[0]
 		ok := false
@@ -234,9 +224,7 @@ func main() {
 		sort.Slice(sortedEntries, func(i, j int) bool {
 			return sortedEntries[i].Count > sortedEntries[j].Count
 		})
-		if err := outputSummary(sortedEntries, *topN, *htmlPath); err != nil {
-			log.Fatal(err)
-		}
+		printSummary(sortedEntries, *topN)
 
 	}
 }
