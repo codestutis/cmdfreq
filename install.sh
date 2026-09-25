@@ -149,6 +149,7 @@ case ${HISTFILESIZE:-} in
 	'' | *[!0-9]*) HISTFILESIZE=10000 ;;
 	*) if [ "$HISTFILESIZE" -lt 10000 ]; then HISTFILESIZE=10000; fi ;;
 esac
+unset HISTCONTROL
 shopt -s histappend
 
 __cmdfreq_history_sync() {

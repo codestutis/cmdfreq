@@ -44,7 +44,8 @@ func TestInstallerConfiguresBashIdempotently(t *testing.T) {
 	if got := readTestFile(t, bashProfile+".cmdfreq.bak"); got != "export EXISTING_PROFILE=1\n" {
 		t.Fatalf(".bash_profile backup = %q", got)
 	}
-	if !strings.Contains(firstConfig, "shopt -s histappend") ||
+	if !strings.Contains(firstConfig, "unset HISTCONTROL") ||
+		!strings.Contains(firstConfig, "shopt -s histappend") ||
 		!strings.Contains(firstConfig, "__cmdfreq_history_sync") {
 		t.Fatalf("bash config is missing history integration:\n%s", firstConfig)
 	}
@@ -210,11 +211,12 @@ func assertBashConfigBehavior(t *testing.T, startupPath, home, binDir string) {
 		"unset HISTFILE\n" +
 		"HISTSIZE=1\n" +
 		"HISTFILESIZE=2\n" +
+		"HISTCONTROL=ignoreboth\n" +
 		"PROMPT_COMMAND=existing_command\n" +
 		". \"$1\"\n" +
 		". \"$1\"\n" +
 		"shopt -q histappend\n" +
-		"printf '%s\\n' \"$PATH\" \"$HISTFILE\" \"$HISTSIZE\" \"$HISTFILESIZE\" \"$PROMPT_COMMAND\"\n"
+		"printf '%s\\n' \"$PATH\" \"$HISTFILE\" \"$HISTSIZE\" \"$HISTFILESIZE\" \"${HISTCONTROL-unset}\" \"$PROMPT_COMMAND\"\n"
 	cmd := exec.Command(bash, "--noprofile", "--norc", "-c", script, "bash", startupPath)
 	cmd.Env = append(cleanEnvironment("HOME", "PATH", "HISTFILE", "HISTSIZE", "HISTFILESIZE", "PROMPT_COMMAND"), "HOME="+home)
 	output, err := cmd.CombinedOutput()
@@ -226,6 +228,7 @@ func assertBashConfigBehavior(t *testing.T, startupPath, home, binDir string) {
 		filepath.Join(home, ".bash_history"),
 		"10000",
 		"10000",
+		"unset",
 		"__cmdfreq_history_sync;existing_command",
 	}
 	if got := strings.Split(strings.TrimSpace(string(output)), "\n"); !equalStrings(got, want) {
