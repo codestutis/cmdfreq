@@ -61,4 +61,4 @@ cmdfreq [-n count] [--resolve-aliases] [<command>]
 
 ## Example output
 
-![Example output](./images/cmdfreq_output.png)
+![Example output](./images/cmdfreq_out.png)
