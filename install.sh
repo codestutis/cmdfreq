@@ -158,7 +158,7 @@ __cmdfreq_history_sync() {
 }
 
 case "$(declare -p PROMPT_COMMAND 2>/dev/null || :)" in
-	"declare -a "*)
+	"declare -a"*)
 		_cmdfreq_prompt_found=false
 		for _cmdfreq_prompt in "${PROMPT_COMMAND[@]}"; do
 			if [ "$_cmdfreq_prompt" = "__cmdfreq_history_sync" ]; then
