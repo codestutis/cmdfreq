@@ -69,6 +69,22 @@ func parseCommandEntries(entry []byte, aliases map[string]string) []CommandEntry
 	}
 	s = strings.ReplaceAll(s, "\\\n", " ")
 
+	return parseCommandString(s, aliases)
+}
+
+// parseCommandString parses a command line, counting both the command itself
+// and any commands run inside shell command substitutions.
+func parseCommandString(s string, aliases map[string]string) []CommandEntry {
+	outer, substitutions := extractCommandSubstitutions(s)
+
+	var entries []CommandEntry
+	for _, substitution := range substitutions {
+		entries = append(entries, parseCommandString(substitution, aliases)...)
+	}
+	return append(entries, parseSegments(outer, aliases)...)
+}
+
+func parseSegments(s string, aliases map[string]string) []CommandEntry {
 	var entries []CommandEntry
 	for _, segment := range splitCommandSegments(s) {
 		args, err := shlex.Split(segment)
@@ -90,6 +106,161 @@ func parseCommandEntries(entry []byte, aliases map[string]string) []CommandEntry
 		entries = append(entries, CommandEntry{Command: args})
 	}
 	return entries
+}
+
+// extractCommandSubstitutions removes command substitutions (`$(...)` and
+// backticks) from s and returns the remaining text along with the inner
+// command strings, in the order they appear. Single-quoted spans and escaped
+// characters are left untouched, and `$((...))` arithmetic is not treated as a
+// command substitution.
+func extractCommandSubstitutions(s string) (string, []string) {
+	runes := []rune(s)
+	var out strings.Builder
+	var substitutions []string
+	var quote rune
+
+	for i := 0; i < len(runes); {
+		char := runes[i]
+
+		if quote == '\'' {
+			out.WriteRune(char)
+			i++
+			if char == '\'' {
+				quote = 0
+			}
+			continue
+		}
+
+		if char == '\\' {
+			out.WriteRune(char)
+			if i+1 < len(runes) {
+				out.WriteRune(runes[i+1])
+				i += 2
+			} else {
+				i++
+			}
+			continue
+		}
+
+		switch char {
+		case '\'':
+			if quote == 0 {
+				quote = '\''
+			}
+			out.WriteRune(char)
+			i++
+			continue
+		case '"':
+			if quote == '"' {
+				quote = 0
+			} else if quote == 0 {
+				quote = '"'
+			}
+			out.WriteRune(char)
+			i++
+			continue
+		case '$':
+			if i+1 < len(runes) && runes[i+1] == '(' {
+				end := matchClosingParen(runes, i+1)
+				if end == -1 {
+					out.WriteRune(char)
+					i++
+					continue
+				}
+				if i+2 < len(runes) && runes[i+2] == '(' {
+					// Arithmetic expansion; not a command.
+					out.WriteString(string(runes[i : end+1]))
+				} else {
+					substitutions = append(substitutions, string(runes[i+2:end]))
+				}
+				i = end + 1
+				continue
+			}
+		case '`':
+			end := matchClosingBacktick(runes, i)
+			if end == -1 {
+				out.WriteRune(char)
+				i++
+				continue
+			}
+			substitutions = append(substitutions, string(runes[i+1:end]))
+			i = end + 1
+			continue
+		}
+
+		out.WriteRune(char)
+		i++
+	}
+
+	return out.String(), substitutions
+}
+
+// matchClosingParen returns the index of the ')' that closes the '(' at open,
+// accounting for nesting, quotes, escapes and backticks. It returns -1 when the
+// parenthesis is unbalanced.
+func matchClosingParen(runes []rune, open int) int {
+	depth := 0
+	var quote rune
+
+	for i := open; i < len(runes); i++ {
+		char := runes[i]
+
+		if quote == '\'' {
+			if char == '\'' {
+				quote = 0
+			}
+			continue
+		}
+		if quote == '"' {
+			if char == '\\' {
+				i++
+				continue
+			}
+			if char == '"' {
+				quote = 0
+			}
+			continue
+		}
+
+		switch char {
+		case '\\':
+			i++
+		case '\'':
+			quote = '\''
+		case '"':
+			quote = '"'
+		case '`':
+			end := matchClosingBacktick(runes, i)
+			if end == -1 {
+				return -1
+			}
+			i = end
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+
+	return -1
+}
+
+// matchClosingBacktick returns the index of the backtick that closes the one at
+// open, or -1 when it is unbalanced.
+func matchClosingBacktick(runes []rune, open int) int {
+	for i := open + 1; i < len(runes); i++ {
+		if runes[i] == '\\' {
+			i++
+			continue
+		}
+		if runes[i] == '`' {
+			return i
+		}
+	}
+	return -1
 }
 
 func splitCommandSegments(command string) []string {

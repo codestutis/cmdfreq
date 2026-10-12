@@ -244,7 +244,10 @@ func assertBashConfigBehavior(t *testing.T, startupPath, home, binDir string) {
 		". \"$1\"\n" +
 		"printf '%s\\n' \"${#PROMPT_COMMAND[@]}\" \"${PROMPT_COMMAND[0]}\" \"${PROMPT_COMMAND[1]}\" \"$HISTFILE\" \"$HISTSIZE\" \"$HISTFILESIZE\"\n"
 	cmd = exec.Command(bash, "--noprofile", "--norc", "-c", arrayScript, "bash", startupPath)
-	cmd.Env = append(cleanEnvironment("HOME"), "HOME="+home)
+	// PROMPT_COMMAND can be inherited as an exported variable, which bash
+	// renders as `declare -ax ...`. Force that state so the array branch is
+	// exercised even when the ambient environment does not export it.
+	cmd.Env = append(cleanEnvironment("HOME", "PROMPT_COMMAND"), "HOME="+home, "PROMPT_COMMAND=existing_command")
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("source bash config with PROMPT_COMMAND array: %v\n%s", err, output)

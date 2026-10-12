@@ -64,6 +64,50 @@ func TestParseHistoryFiltersPathsAndAssignments(t *testing.T) {
 	assertCommands(t, entries, want)
 }
 
+func TestParseHistoryWithCommandsInEnvAssignment(t *testing.T) {
+	// Commands run inside command substitutions must be counted too.
+	history := strings.Join([]string{
+		// substitution used as an argument to another command
+		`echo $(date)`,
+		// substitution assignment followed by a real command
+		`RESULT=$(git status) npm test`,
+		// nested substitutions
+		`echo $(basename $(pwd))`,
+		// several substitutions on one line
+		`a=$(foo) b=$(bar)`,
+		// separators inside a substitution must not split the outer command
+		`VERSION=$(git describe --tags; echo done)`,
+		// backticks are equivalent to $(...)
+		"STAMP=`date +%s`",
+		// arithmetic expansion is not a command substitution
+		`x=$((1+2))`,
+		// single quotes suppress command substitution
+		`echo '$(not-run)'`,
+	}, "\n")
+
+	entries, err := ParseHistory(strings.NewReader(history))
+	if err != nil {
+		t.Fatalf("ParseHistory() error = %v", err)
+	}
+
+	want := [][]string{
+		{"date"},
+		{"echo"},
+		{"git", "status"},
+		{"npm", "test"},
+		{"pwd"},
+		{"basename"},
+		{"echo"},
+		{"foo"},
+		{"bar"},
+		{"git", "describe", "--tags"},
+		{"echo", "done"},
+		{"date", "+%s"},
+		{"echo", "$(not-run)"},
+	}
+	assertCommands(t, entries, want)
+}
+
 func TestParseHistorySkipsEmptyAndInvalidSegments(t *testing.T) {
 	history := strings.Join([]string{
 		"",
