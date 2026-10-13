@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -8,10 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/codestutis/cmdfreq/internal/histparse"
+	"github.com/codestutis/cmdfreq/internal/update"
 )
 
 func historyFilePath(getenv func(string) string, userHomeDir func() (string, error)) (string, error) {
@@ -65,11 +68,14 @@ type CommandFreq struct {
 	Count   int
 }
 
-const maxBarWidth = 36
-const defaultTopN = 20
+const (
+	maxBarWidth = 36
+	defaultTopN = 20
+)
 
 // ANSI helpers
 func fg(hex, text string) string { return fmt.Sprintf("\033[38;2;%sm%s\033[0m", hexToANSI(hex), text) }
+
 func bg(hex, text string) string { return fmt.Sprintf("\033[48;2;%sm%s\033[0m", hexToANSI(hex), text) }
 func bold(text string) string    { return fmt.Sprintf("\033[1m%s\033[0m", text) }
 func dim(text string) string     { return fmt.Sprintf("\033[2m%s\033[0m", text) }
@@ -176,14 +182,79 @@ func loadAliases(shell string) (map[string]string, error) {
 	return histparse.ParseAliases(string(output)), nil
 }
 
+var version = "dev"
+
+// maintenanceMode validates modes before touching shell history.
+func maintenanceMode(fs *flag.FlagSet, updating, showingVersion bool) (string, error) {
+	if !updating && !showingVersion {
+		return "", nil
+	}
+	conflict := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "n" || f.Name == "resolve-aliases" {
+			conflict = true
+		}
+	})
+	if conflict {
+		return "", fmt.Errorf("update/version flags cannot be combined with history flags")
+	}
+	if updating && showingVersion {
+		return "", fmt.Errorf("update and version flags cannot be combined")
+	}
+	if showingVersion {
+		if fs.NArg() != 0 {
+			return "", fmt.Errorf("version flags do not accept arguments")
+		}
+		return "", nil
+	}
+	if fs.NArg() > 1 {
+		return "", fmt.Errorf("update accepts at most one version")
+	}
+	return update.NormalizeTarget(fs.Arg(0))
+}
+
 func main() {
 	topN := flag.Int("n", defaultTopN, "number of results to show")
 	resolveAliases := flag.Bool("resolve-aliases", false, "resolve aliases using the configured shell")
+	var updating, showingVersion bool
+	flag.BoolVar(&updating, "update", false, "update to latest or a specified release")
+	flag.BoolVar(&updating, "u", false, "alias for --update")
+	flag.BoolVar(&showingVersion, "version", false, "print the running version")
+	flag.BoolVar(&showingVersion, "v", false, "alias for --version")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: cmdfreq [-n count] [--resolve-aliases] [<command>]\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: cmdfreq [-n count] [--resolve-aliases] [<command>]\n       cmdfreq --update|-u [version]\n       cmdfreq --version|-v\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	target, err := maintenanceMode(flag.CommandLine, updating, showingVersion)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if showingVersion {
+		fmt.Printf("cmdfreq %s\n", version)
+		return
+	}
+	if updating {
+		executable, err := os.Executable()
+		if err != nil {
+			log.Fatalf("find running executable: %v", err)
+		}
+		executable, err = filepath.EvalSymlinks(executable)
+		if err != nil {
+			log.Fatalf("resolve running executable: %v", err)
+		}
+		fmt.Printf("cmdfreq %s: checking %s (installation: %s)\n", version, target, executable)
+		selected, changed, err := (update.Updater{}).Run(context.Background(), target, version, executable, runtime.GOOS, runtime.GOARCH)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if changed {
+			fmt.Printf("Updated cmdfreq %s -> %s at %s\n", version, selected, executable)
+		} else {
+			fmt.Printf("cmdfreq %s is already installed at %s\n", selected, executable)
+		}
+		return
+	}
 
 	if *topN < 1 {
 		log.Fatalf("-n must be greater than 0")

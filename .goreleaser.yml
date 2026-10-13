@@ -5,6 +5,8 @@ project_name: cmdfreq
 builds:
   - main: .
     binary: cmdfreq
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
     env:
       - CGO_ENABLED=0
     goos:

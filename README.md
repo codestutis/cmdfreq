@@ -39,13 +39,10 @@ The custom directory is added to `PATH` by the generated shell configuration.
 
 Native Windows is not supported; use WSL with Bash or Zsh history.
 
-### Go install
+### Go install (deprecated)
 
-```sh
-go install github.com/codestutis/cmdfreq@latest
-```
-
-When installed this way, ensure the Go binary directory is on `PATH`. `cmdfreq` uses `HISTFILE` when set and otherwise detects the standard Bash or Zsh history file.
+`go install` is deprecated; use the installation script above. Existing Go-installed
+binaries that include the updater can replace themselves with a release binary.
 
 ## Usage
 
@@ -58,6 +55,28 @@ cmdfreq [-n count] [--resolve-aliases] [<command>]
 - Use `--resolve-aliases` to count aliases as the commands they expand to.
 - `cmdfreq git` shows the most-used arguments to `git`.
 - `cmdfreq -n 10 git` shows the top 10 most-used arguments to `git`.
+
+## Updating and version
+
+```sh
+cmdfreq --update          # latest stable GitHub release
+cmdfreq -u               # same as --update
+cmdfreq --update v0.4.0  # specific published release
+cmdfreq -u 0.4.0         # leading v is optional
+cmdfreq --version        # current running binary version
+cmdfreq -v              # same as --version
+```
+
+Updates verify the release archive's SHA-256 checksum and replace the running
+executable in its existing directory. That directory must be writable. Updates
+preserve shell configuration and do not require Go, curl, or sudo. Symlinks to
+cmdfreq are preserved; their target binary is replaced.
+
+A specified version may be a downgrade or prerelease. Older releases may lack
+update/version flags; use the installation script to upgrade again after such a
+downgrade. Update and version flags cannot be combined with each other or with
+history options. Locally built binaries report `dev` unless built with
+`-ldflags "-X main.version=<version>"`.
 
 ## Example output
 
